@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spring Boot Vue.js Actuator Test</title>
+    
+    <!-- Vue.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+    <!-- Axios CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <!-- EChart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+    
+    <style>
+        .chart-container {
+            display: flex;
+            justify-content: space-between;
+        }
+        .chart {
+            width: 23%; /* Adjust width as needed */
+            height: 400px; /* Fixed height */
+            margin-bottom: 20px; /* Spacing between charts */
+        }
+        
+       	.metrics-table {
+	        width: 100%;
+	        border-collapse: collapse;
+	    }
+	    .metrics-table th, .metrics-table td {
+	        border: 1px solid #dddddd;
+	        text-align: center; /* 가운데 정렬 */
+	        padding: 8px;
+	    }
+	    .metrics-table th {
+	        background-color: #f2f2f2;
+	    }
+    </style>
+</head>
+<body>
+    <div class="chart-container">
+        <div id="cpuChart" class="chart"></div>
+        <div id="threadChart" class="chart"></div>
+        <div id="heapChart" class="chart"></div>
+        <div id="memoryChart" class="chart"></div>
+    </div>
+    <div id="app">
+	    <h1>Metrics History</h1>
+	    <table class="metrics-table">
+	        <thead>
+	            <tr>
+	                <th>No</th>
+	                <th v-for="(value, key) in metricsHistory" :key="key">{{ key }}</th>
+	            </tr>
+	        </thead>
+	        <tbody>
+	            <tr v-for="index in metricsHistory.systemCpuUsage.length" :key="index">
+	                <td>{{ index }}</td>
+	                <td>{{ metricsHistory.systemCpuUsage[index - 1] }}</td>
+	                <td>{{ metricsHistory.processCpuUsage[index - 1] }}</td>
+	                <td>{{ metricsHistory.jvmThreadsLive[index - 1] }}</td>
+	                <td>{{ metricsHistory.jvmThreadsDaemon[index - 1] }}</td>
+	                <td>{{ metricsHistory.jvmThreadsPeak[index - 1] }}</td>
+	                <td>{{ metricsHistory.jvmMemoryUsed[index - 1] }}</td>
+	                <td>{{ metricsHistory.jvmMemoryMax[index - 1] }}</td>
+	                <td>{{ metricsHistory.jvmMemoryCommitted[index - 1] }}</td>
+	            </tr>
+	        </tbody>
+	    </table>
+	</div>
+    <script>
+	    new Vue({
+	        el: '#app',
+	        data: {
+        	/* 	            
+	        	healthStatus: {},
+	            infoStatus: {}, 
+            */
+	            metricsHistory: {
+	                systemCpuUsage: [],
+	                processCpuUsage: [],
+	                jvmThreadsLive: [],
+	                jvmThreadsDaemon: [],
+	                jvmThreadsPeak: [],
+	                jvmMemoryUsed: [],
+	                jvmMemoryMax: [],
+	                jvmMemoryCommitted: []
+	            },
+	            cpuChart: null,
+	            threadChart: null,
+	            heapChart: null,
+	            memoryChart: null,
+	            loading: false  // 추가: 데이터를 가져오는 중인지 여부를 표시하는 데이터
+	        },
+	        methods: {
+	        /* 	
+	            fetchHealthStatus() {
+	                this.loading = true;
+	                axios.get('/api/health')
+	                    .then(response => {
+	                        this.healthStatus = response.data;
+	                    })
+	                    .catch(error => {
+	                        console.error("There was an error fetching the health status!", error);
+	                    })
+	                    .finally(() => {
+	                        this.loading = false;
+	                    });
+	            },
+	         */    
+            /* 
+	            fetchInfoStatus() {
+	                this.loading = true;
+	                axios.get('/api/info')
+	                    .then(response => {
+	                        this.infoStatus = response.data;
+	                    })
+	                    .catch(error => {
+	                        console.error("There was an error fetching the info status!", error);
+	                    })
+	                    .finally(() => {
+	                        this.loading = false;
+	                    });
+	            },
+             */
+	            fetchMetricsStatus() {
+	                this.loading = true;
+	                axios.get('/api/metrics')
+	                    .then(response => {
+	                        const metrics = response.data;
+	                        this.updateMetricsHistory(metrics);
+	                        this.updateCharts();
+	                    })
+	                    .catch(error => {
+	                        console.error("There was an error fetching the metrics status!", error);
+	                    })
+	                    .finally(() => {
+	                        this.loading = false;
+	                    });
+	            },
+	            updateMetricsHistory(metrics) {
+	                // 데이터 추가 및 최대 데이터 길이 제한
+	                const maxHistoryLength = 100;
+	                for (const key in this.metricsHistory) {
+	                    if (this.metricsHistory[key].length >= maxHistoryLength) {
+	                        this.metricsHistory[key].shift();
+	                    }
+	                    this.metricsHistory[key].push(metrics[key]);
+	                }
+	            },
+	            initCharts() {
+	                this.cpuChart = echarts.init(document.getElementById('cpuChart'));
+	                this.threadChart = echarts.init(document.getElementById('threadChart'));
+	                this.heapChart = echarts.init(document.getElementById('heapChart'));
+	                this.memoryChart = echarts.init(document.getElementById('memoryChart'));
+
+	                // Initialize charts with base options
+	                const baseOption = {
+	                    xAxis: {
+	                        type: 'category',
+	                        boundaryGap: false,
+	                        data: Array.from({ length: 100 }, (_, index) => index + 1)
+	                    },
+	                    yAxis: {
+	                        type: 'value'
+	                    },
+	                    series: [{
+	                        type: 'line',
+	                        areaStyle: {}
+	                    }]
+	                };
+
+	                this.cpuChart.setOption({ ...baseOption, title: { text: 'CPU' } });
+	                this.threadChart.setOption({ ...baseOption, title: { text: 'Thread' } });
+	                this.heapChart.setOption({ ...baseOption, title: { text: 'Heap' } });
+	                this.memoryChart.setOption({ ...baseOption, title: { text: 'Memory' } });
+	            },
+	            updateCharts() {
+	                const metrics = this.metricsHistory;
+
+	                // Update CPU Chart
+	                this.cpuChart.setOption({
+	                    series: [{
+	                        data: metrics.systemCpuUsage
+	                    }]
+	                });
+
+	                // Update Thread Chart
+	                this.threadChart.setOption({
+	                    series: [{
+	                        data: metrics.jvmThreadsLive,
+	                    }]
+	                });
+	                
+	                // Update Heap Chart
+	                this.heapChart.setOption({
+	                    series: [{
+	                        data: metrics.jvmMemoryCommitted
+	                    }]
+	                });
+
+	                // Update Memory Chart
+	                this.memoryChart.setOption({
+	                    series: [{
+	                        data: metrics.jvmMemoryUsed
+	                    }]
+	                });
+
+				/* 	                
+ 					// Update Heap Chart
+	                this.heapChart.setOption({
+	                    series: [{
+	                        data: [
+	                            metrics.jvmMemoryUsed,
+	                            metrics.jvmMemoryMax,
+	                            metrics.jvmMemoryCommitted
+	                        ]
+	                    }]
+	                });
+
+	                // Update Memory Chart
+	                this.memoryChart.setOption({
+	                    series: [{
+	                        data: [
+	                            metrics.jvmMemoryUsed,
+	                            metrics.jvmMemoryMax
+	                        ]
+	                    }]
+	                }); 
+                */
+	            }
+	        },
+	        mounted() {
+	            // Initialize the charts
+	            this.initCharts();
+	
+	            // Fetch initial data
+	        /*     
+	            this.fetchHealthStatus();
+	            this.fetchInfoStatus();
+             */
+	            this.fetchMetricsStatus();
+	
+	            // Set interval to update data every 1 seconds (1000 milliseconds)
+	            setInterval(() => {
+	            /* 	
+	                this.fetchHealthStatus();
+	                this.fetchInfoStatus();
+	             */    
+	                this.fetchMetricsStatus();
+	            }, 1000); // Update every 1 seconds
+	        }
+	    });
+
+    </script>
+</body>
+</html>
